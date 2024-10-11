@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useParams, useNavigate } from 'react-router-dom';
 import { updateTutorial, deleteTutorial } from "../slices/tutorials";
+import { createComment, retrieveComments } from "../slices/comments"; 
 import TutorialDataService from "../services/TutorialService";
 
 const Tutorial = (props) => {
-  const { id }= useParams();
+  const { id } = useParams();
   let navigate = useNavigate();
 
   const initialTutorialState = {
@@ -14,29 +15,60 @@ const Tutorial = (props) => {
     description: "",
     published: false
   };
+  
   const [currentTutorial, setCurrentTutorial] = useState(initialTutorialState);
   const [message, setMessage] = useState("");
+  const [newComment, setNewComment] = useState(""); // tämä on uusi tila kommentille joka lisätään tutoriaaliin
 
   const dispatch = useDispatch();
+  const comments = useSelector(state => state.comments || []); 
+  console.log("Current comment in component:", comments); // Testataan tuleeko kommentit stateen
 
-  const getTutorial = id => {
-    TutorialDataService.get(id)
-      .then(response => {
-        setCurrentTutorial(response.data);
-      })
-      .catch(e => {
-        console.log(e);
-      });
-  };
 
+  // useEffect hook joka hakee tutoriaalin ja kommentit kun sivu latautuu
   useEffect(() => {
-    if (id)
+    const getTutorial = id => {
+      TutorialDataService.get(id)
+        .then(response => {
+          setCurrentTutorial(response.data);
+          console.log(" ID tutoriaaliin:", id); // debugausta
+          dispatch(retrieveComments(id)); // hakee kommentit tutoriaalille kun tutoriaali on haettu
+        })
+        .catch(e => {
+          console.log(e);
+        });
+    };
+  
+    if (id) {
       getTutorial(id);
-  }, [id]);
+    }
+  }, [id, dispatch]);
+  
 
+  // käsittelee input-kenttien muutokset ja päivittää currentTutorial tilan
   const handleInputChange = event => {
     const { name, value } = event.target;
     setCurrentTutorial({ ...currentTutorial, [name]: value });
+  };
+
+  // käsittelee kommentin input-kentän muutokset ja päivittää newComment tilan
+  const handleCommentChange = event => {
+    setNewComment(event.target.value); // päivittää newComment tilan input-kentän arvolla
+  };
+
+  // lisää kommentin tutoriaaliin kun painetaan Add Comment-nappia
+  const addComment = () => {
+    if (newComment.trim()) { // tarvitaa onko kommentti tyhjä, jos ei niin lisätään kommentti
+      dispatch(createComment({ tutorialId: currentTutorial.id, text: newComment }))
+        .unwrap()
+        .then(() => {
+          setNewComment(""); // tyhjentää input-kentän
+          setMessage("Comment added successfully!");
+        })
+        .catch(e => {
+          console.log(e);
+        });
+    }
   };
 
   const updateStatus = status => {
@@ -146,6 +178,28 @@ const Tutorial = (props) => {
           >
             Update
           </button>
+
+          <h4>Comments</h4>
+          <ul>
+            {comments.length > 0 ? (
+              comments.map(comment => (
+                <li key={comment.id}>{comment.text}</li>
+              ))
+            ) : (
+              <p>No comments available.</p>
+            )}
+          </ul>
+
+          <input
+            type="text"
+            value={newComment}
+            onChange={handleCommentChange}
+            placeholder="Add a comment"
+          />
+          <button onClick={addComment} className="badge badge-success">
+            Add Comment
+          </button>
+
           <p>{message}</p>
         </div>
       ) : (
